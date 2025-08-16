@@ -1,17 +1,21 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using MediaDevices;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Runtime.InteropServices;
 
 public class IPhoneMediaTransfer
 {
 	private readonly MediaDevice device;
-	private readonly HashSet<string> transferredFiles = new HashSet<string>();
-	private readonly List<string> failedFiles = new List<string>();
+	private readonly ConcurrentDictionary<string, byte> transferredFiles = new ConcurrentDictionary<string, byte>();
+	private readonly ConcurrentBag<string> failedFiles = new ConcurrentBag<string>();
 	private const int MaxRetries = 3;
+
+
 
 	public IPhoneMediaTransfer()
 	{
@@ -38,7 +42,7 @@ public class IPhoneMediaTransfer
 				Directory.CreateDirectory(Path.GetDirectoryName(dest));
 				device.DownloadFile(source, dest);
 				Console.WriteLine($"Copied {source} → {dest}");
-				transferredFiles.Add(dest);
+				transferredFiles.TryAdd(dest, 0);
 				return;
 			}
 			catch (Exception ex)
@@ -50,7 +54,7 @@ public class IPhoneMediaTransfer
 				}
 				else
 				{
-					Thread.Sleep(500);
+					Thread.Sleep(500 * attempt);
 				}
 			}
 		}
@@ -62,23 +66,28 @@ public class IPhoneMediaTransfer
 		{
 			Directory.CreateDirectory(targetFolder);
 
-			foreach (var entry in device.GetFileSystemEntries(sourceFolder))
-			{
-				string name = Path.GetFileName(entry);
-				string destPath = Path.Combine(targetFolder, name);
+			var entries = device.GetFileSystemEntries(sourceFolder);
 
-				if (device.FileExists(entry))
+			// Run in parallel with a cap (avoid overloading USB / device)
+			Parallel.ForEach(entries,
+				new ParallelOptions { MaxDegreeOfParallelism = 4 }, // adjust based on performance
+				entry =>
 				{
-					if (!transferredFiles.Contains(destPath))
+					string name = Path.GetFileName(entry);
+					string destPath = Path.Combine(targetFolder, name);
+
+					if (device.FileExists(entry))
 					{
-						CopyFileWithRetries(entry, destPath);
+						if (!transferredFiles.ContainsKey(destPath))
+						{
+							CopyFileWithRetries(entry, destPath);
+						}
 					}
-				}
-				else if (device.DirectoryExists(entry))
-				{
-					CopyFolderRecursively(entry, destPath);
-				}
-			}
+					else if (device.DirectoryExists(entry))
+					{
+						CopyFolderRecursively(entry, destPath);
+					}
+				});
 		}
 		catch (COMException ex)
 		{
@@ -86,7 +95,6 @@ public class IPhoneMediaTransfer
 			failedFiles.Add($"Folder {sourceFolder}: {ex.Message}");
 		}
 	}
-
 
 	public void CopyAllMedia(string targetFolder)
 	{
