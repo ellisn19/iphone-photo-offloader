@@ -19,7 +19,7 @@ class Program
 	static void OnExitInterrupt(object sender, ConsoleCancelEventArgs e)
 	{
 		Console.WriteLine("\nTransfer interrupted by user!");
-		DisplayStats(); // you’d need a method in IPhoneMediaTransfer to print stats
+		DisplayStats();
 		e.Cancel = false; // allow program to exit after this handler
 	}
 
