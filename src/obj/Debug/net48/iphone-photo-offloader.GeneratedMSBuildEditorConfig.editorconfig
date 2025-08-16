@@ -1,0 +1,5 @@
+is_global = true
+build_property.RootNamespace = iphone-photo-offloader
+build_property.ProjectDir = C:\Users\Nick\Documents\GitHub\iphone-photo-offloader\src\
+build_property.EnableComHosting = true
+build_property.EnableGeneratedComInterfaceComImportInterop = 

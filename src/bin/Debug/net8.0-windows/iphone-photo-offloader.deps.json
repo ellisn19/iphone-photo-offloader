@@ -1,0 +1,41 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v8.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v8.0": {
+      "iphone-photo-offloader/1.0.0": {
+        "dependencies": {
+          "MediaDevices": "1.9.0"
+        },
+        "runtime": {
+          "iphone-photo-offloader.dll": {}
+        }
+      },
+      "MediaDevices/1.9.0": {
+        "runtime": {
+          "lib/net6.0/MediaDevices.dll": {
+            "assemblyVersion": "1.9.0.0",
+            "fileVersion": "1.9.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "iphone-photo-offloader/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "MediaDevices/1.9.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-aD5cfm4+9AggjIdO/T/cNdll6/5vCfNh6Sagg247vmxojAyWseCU8vUseUwnglm8xTCV2kMAvOEA18HHkuQqrQ==",
+      "path": "mediadevices/1.9.0",
+      "hashPath": "mediadevices.1.9.0.nupkg.sha512"
+    }
+  }
+}
