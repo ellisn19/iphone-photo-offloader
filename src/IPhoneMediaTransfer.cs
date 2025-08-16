@@ -15,7 +15,27 @@ public class IPhoneMediaTransfer
 	private readonly ConcurrentBag<string> failedFiles = new ConcurrentBag<string>();
 	private const int MaxRetries = 3;
 
+	public int TransferredCount
+	{
+		get
+		{
+			lock (transferredFiles)
+			{
+				return transferredFiles.Count;
+			}
+		}
+	}
 
+	public int FailedCount
+	{
+		get
+		{
+			lock (failedFiles)
+			{
+				return failedFiles.Count;
+			}
+		}
+	}
 
 	public IPhoneMediaTransfer()
 	{
