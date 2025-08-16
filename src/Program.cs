@@ -13,7 +13,6 @@ class Program
 		AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
 
 		transfer.CopyAllMedia(targetFolder);
-		Console.WriteLine("Transfer complete!");
 	}
 
 	static void OnExitInterrupt(object sender, ConsoleCancelEventArgs e)
@@ -26,6 +25,7 @@ class Program
 	static void OnProcessExit(object sender, EventArgs e)
 	{
 		DisplayStats();
+		Console.WriteLine("Transfer complete!");
 	}
 
 	static void DisplayStats()
