@@ -1,10 +1,11 @@
 ﻿using System;
+using System.Threading.Tasks;
 
 class Program
 {
 	static IPhoneMediaTransfer transfer;
 
-	static void Main()
+	static async Task Main()
 	{
 		string targetFolder = @"G:\iPhonePictures2";
 		transfer = new IPhoneMediaTransfer();
@@ -12,7 +13,10 @@ class Program
 		Console.CancelKeyPress += OnExitInterrupt;
 		AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
 
-		transfer.CopyAllMedia(targetFolder);
+		await transfer.CopyAllMediaAsync(targetFolder);
+
+		DisplayStats();
+		Console.WriteLine("Transfer complete!");
 	}
 
 	static void OnExitInterrupt(object sender, ConsoleCancelEventArgs e)
