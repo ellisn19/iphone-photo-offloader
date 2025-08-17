@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("iphone-photo-offloader")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c3fb54d50c8ef04198de44493d9d6aacf8eec9ad")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+b8c82fbb661295adec58232ec87c7a889a6b6bda")]
 [assembly: System.Reflection.AssemblyProductAttribute("iphone-photo-offloader")]
 [assembly: System.Reflection.AssemblyTitleAttribute("iphone-photo-offloader")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
