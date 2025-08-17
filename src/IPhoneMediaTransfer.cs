@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using MediaDevices;
@@ -11,31 +10,12 @@ using System.Runtime.InteropServices;
 public class IPhoneMediaTransfer
 {
 	private readonly MediaDevice device;
-	private readonly ConcurrentDictionary<string, byte> transferredFiles = new ConcurrentDictionary<string, byte>();
-	private readonly ConcurrentBag<string> failedFiles = new ConcurrentBag<string>();
+	private readonly HashSet<string> transferredFiles = new HashSet<string>();
+	private readonly List<string> failedFiles = new List<string>();
 	private const int MaxRetries = 3;
 
-	public int TransferredCount
-	{
-		get
-		{
-			lock (transferredFiles)
-			{
-				return transferredFiles.Count;
-			}
-		}
-	}
-
-	public int FailedCount
-	{
-		get
-		{
-			lock (failedFiles)
-			{
-				return failedFiles.Count;
-			}
-		}
-	}
+	public int TransferredCount => transferredFiles.Count;
+	public int FailedCount => failedFiles.Count;
 
 	public IPhoneMediaTransfer()
 	{
@@ -53,17 +33,21 @@ public class IPhoneMediaTransfer
 		return phone;
 	}
 
-	private void CopyFileWithRetries(string source, string dest)
+	private async Task<bool> CopyFileWithRetriesAsync(string source, string dest)
 	{
 		for (int attempt = 1; attempt <= MaxRetries; attempt++)
 		{
 			try
 			{
-				Directory.CreateDirectory(Path.GetDirectoryName(dest));
-				device.DownloadFile(source, dest);
+				// Create directory asynchronously
+				await Task.Run(() => Directory.CreateDirectory(Path.GetDirectoryName(dest)));
+
+				// Wrap the MediaDevice download in a Task to make it async
+				await Task.Run(() => device.DownloadFile(source, dest));
+
 				Console.WriteLine($"Copied {source} → {dest}");
-				transferredFiles.TryAdd(dest, 0);
-				return;
+				transferredFiles.Add(dest);
+				return true;
 			}
 			catch (Exception ex)
 			{
@@ -71,43 +55,46 @@ public class IPhoneMediaTransfer
 				if (attempt == MaxRetries)
 				{
 					failedFiles.Add($"{source} → {dest}: {ex.Message}");
+					return false;
 				}
 				else
 				{
-					Thread.Sleep(500 * attempt);
+					// Use async delay instead of Thread.Sleep
+					await Task.Delay(500 * attempt);
 				}
 			}
 		}
+		return false;
 	}
 
-	private void CopyFolderRecursively(string sourceFolder, string targetFolder)
+	private async Task CopyFolderRecursivelyAsync(string sourceFolder, string targetFolder)
 	{
 		try
 		{
-			Directory.CreateDirectory(targetFolder);
+			// Create directory asynchronously
+			await Task.Run(() => Directory.CreateDirectory(targetFolder));
 
-			var entries = device.GetFileSystemEntries(sourceFolder);
+			// Get entries synchronously (MediaDevice API doesn't support async)
+			var entries = await Task.Run(() => device.GetFileSystemEntries(sourceFolder));
 
-			// Run in parallel with a cap (avoid overloading USB / device)
-			Parallel.ForEach(entries,
-				new ParallelOptions { MaxDegreeOfParallelism = 4 }, // adjust based on performance
-				entry =>
+			// Process entries sequentially for better reliability
+			foreach (var entry in entries)
+			{
+				string name = Path.GetFileName(entry);
+				string destPath = Path.Combine(targetFolder, name);
+
+				if (await Task.Run(() => device.FileExists(entry)))
 				{
-					string name = Path.GetFileName(entry);
-					string destPath = Path.Combine(targetFolder, name);
-
-					if (device.FileExists(entry))
+					if (!transferredFiles.Contains(destPath))
 					{
-						if (!transferredFiles.ContainsKey(destPath))
-						{
-							CopyFileWithRetries(entry, destPath);
-						}
+						await CopyFileWithRetriesAsync(entry, destPath);
 					}
-					else if (device.DirectoryExists(entry))
-					{
-						CopyFolderRecursively(entry, destPath);
-					}
-				});
+				}
+				else if (await Task.Run(() => device.DirectoryExists(entry)))
+				{
+					await CopyFolderRecursivelyAsync(entry, destPath);
+				}
+			}
 		}
 		catch (COMException ex)
 		{
@@ -116,7 +103,7 @@ public class IPhoneMediaTransfer
 		}
 	}
 
-	public void CopyAllMedia(string targetFolder)
+	public async Task CopyAllMediaAsync(string targetFolder)
 	{
 		if (device == null)
 		{
@@ -126,18 +113,20 @@ public class IPhoneMediaTransfer
 
 		string root = @"\Internal Storage";
 
-		if (!device.DirectoryExists(root))
+		if (!await Task.Run(() => device.DirectoryExists(root)))
 		{
 			Console.WriteLine($"Directory {root} not found.");
 			return;
 		}
 
-		foreach (var folder in device.GetFileSystemEntries(root))
+		var rootEntries = await Task.Run(() => device.GetFileSystemEntries(root));
+
+		foreach (var folder in rootEntries)
 		{
-			if (device.DirectoryExists(folder))
+			if (await Task.Run(() => device.DirectoryExists(folder)))
 			{
 				string destFolder = Path.Combine(targetFolder, Path.GetFileName(folder));
-				CopyFolderRecursively(folder, destFolder);
+				await CopyFolderRecursivelyAsync(folder, destFolder);
 			}
 		}
 
@@ -148,7 +137,7 @@ public class IPhoneMediaTransfer
 			string projectRoot = AppContext.BaseDirectory;
 			projectRoot = Path.GetFullPath(Path.Combine(projectRoot, @"..\..\.."));
 			string failLog = Path.Combine(projectRoot, "failed_transfers.txt");
-			File.WriteAllLines(failLog, failedFiles);
+			await File.WriteAllLinesAsync(failLog, failedFiles);
 			Console.WriteLine($"Failed transfers logged to: {failLog}");
 		}
 	}
