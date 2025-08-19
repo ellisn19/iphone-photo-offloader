@@ -69,39 +69,51 @@ public class IPhoneMediaTransfer
 
 	private async Task CopyFolderRecursivelyAsync(string sourceFolder, string targetFolder)
 	{
-		try
+		// Ensure folder exists
+		await Task.Run(() => Directory.CreateDirectory(targetFolder));
+		Console.WriteLine($"Created directory (or already exists): {targetFolder}");
+
+		var entries = device.GetFileSystemEntries(sourceFolder);
+
+		foreach (var entry in entries)
 		{
-			// Create directory asynchronously
-			await Task.Run(() => Directory.CreateDirectory(targetFolder));
-
-			// Get entries synchronously (MediaDevice API doesn't support async)
-			var entries = await Task.Run(() => device.GetFileSystemEntries(sourceFolder));
-
-			// Process entries sequentially for better reliability
-			foreach (var entry in entries)
+			if (device.DirectoryExists(entry))
 			{
-				string name = Path.GetFileName(entry);
-				string destPath = Path.Combine(targetFolder, name);
+				// Recurse into subfolder
+				string subFolder = Path.Combine(targetFolder, Path.GetFileName(entry));
+				await CopyFolderRecursivelyAsync(entry, subFolder);
+			}
+			else
+			{
+				string destPath = Path.Combine(targetFolder, Path.GetFileName(entry));
 
-				if (await Task.Run(() => device.FileExists(entry)))
+				// ✅ Get source file info from device
+				var sourceInfo = device.GetFileInfo(entry);
+				long sourceSize = (long)sourceInfo.Length;
+
+				// ✅ Skip if file already exists and sizes match
+				if (File.Exists(destPath))
 				{
-					if (!transferredFiles.Contains(destPath))
+					long existingSize = new FileInfo(destPath).Length;
+
+					if (existingSize == sourceSize)
 					{
-						await CopyFileWithRetriesAsync(entry, destPath);
+						Console.WriteLine($"Skipping existing file: {destPath}");
+						continue;
+					}
+					else
+					{
+						Console.WriteLine($"Re-copying (size mismatch): {destPath}");
 					}
 				}
-				else if (await Task.Run(() => device.DirectoryExists(entry)))
-				{
-					await CopyFolderRecursivelyAsync(entry, destPath);
-				}
+
+				// Copy with retries
+				await CopyFileWithRetriesAsync(entry, destPath);
+				transferredFiles.Add(destPath);
 			}
 		}
-		catch (COMException ex)
-		{
-			Console.WriteLine($"Failed to enumerate folder {sourceFolder}: {ex.Message}");
-			failedFiles.Add($"Folder {sourceFolder}: {ex.Message}");
-		}
 	}
+
 
 	public async Task CopyAllMediaAsync(string targetFolder)
 	{
