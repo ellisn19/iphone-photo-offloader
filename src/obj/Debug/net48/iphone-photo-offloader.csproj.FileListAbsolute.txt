@@ -1,1 +1,0 @@
-C:\Users\Nick\Documents\GitHub\iphone-photo-offloader\src\obj\Debug\net48\iphone-photo-offloader.csproj.AssemblyReference.cache
