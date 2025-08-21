@@ -16,6 +16,8 @@ public class IPhoneMediaTransfer
 
 	public int TransferredCount => transferredFiles.Count;
 	public int FailedCount => failedFiles.Count;
+	private readonly HashSet<string> visitedFolders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
 
 	public IPhoneMediaTransfer()
 	{
@@ -69,48 +71,59 @@ public class IPhoneMediaTransfer
 
 	private async Task CopyFolderRecursivelyAsync(string sourceFolder, string targetFolder)
 	{
-		// Ensure folder exists
-		await Task.Run(() => Directory.CreateDirectory(targetFolder));
-		Console.WriteLine($"Created directory (or already exists): {targetFolder}");
+		if (visitedFolders.Contains(sourceFolder))
+			return; // already processed
 
-		var entries = device.GetFileSystemEntries(sourceFolder);
+		visitedFolders.Add(sourceFolder);
 
-		foreach (var entry in entries)
+		try
 		{
-			if (device.DirectoryExists(entry))
+			await Task.Run(() => Directory.CreateDirectory(targetFolder));
+			Console.WriteLine($"Created directory (or already exists): {targetFolder}");
+
+			string[] entries;
+			try
 			{
-				// Recurse into subfolder
-				string subFolder = Path.Combine(targetFolder, Path.GetFileName(entry));
-				await CopyFolderRecursivelyAsync(entry, subFolder);
+				entries = device.GetFileSystemEntries(sourceFolder);
 			}
-			else
+			catch (COMException ex)
 			{
-				string destPath = Path.Combine(targetFolder, Path.GetFileName(entry));
+				Console.WriteLine($"[WARN] Could not enumerate '{sourceFolder}': {ex.Message}");
+				return;
+			}
 
-				// ✅ Get source file info from device
-				var sourceInfo = device.GetFileInfo(entry);
-				long sourceSize = (long)sourceInfo.Length;
-
-				// ✅ Skip if file already exists and sizes match
-				if (File.Exists(destPath))
+			foreach (var entry in entries)
+			{
+				if (device.DirectoryExists(entry))
 				{
-					long existingSize = new FileInfo(destPath).Length;
+					string subFolder = Path.Combine(targetFolder, Path.GetFileName(entry));
+					await CopyFolderRecursivelyAsync(entry, subFolder);
+				}
+				else if (device.FileExists(entry))
+				{
+					string destPath = Path.Combine(targetFolder, Path.GetFileName(entry));
+					var sourceInfo = device.GetFileInfo(entry);
+					// long sourceSize = (long)sourceInfo.Length;
 
-					if (existingSize == sourceSize)
+					// if (File.Exists(destPath) && new FileInfo(destPath).Length == sourceSize)
+					if (File.Exists(destPath))
 					{
 						Console.WriteLine($"Skipping existing file: {destPath}");
 						continue;
 					}
-					else
-					{
-						Console.WriteLine($"Re-copying (size mismatch): {destPath}");
-					}
-				}
 
-				// Copy with retries
-				await CopyFileWithRetriesAsync(entry, destPath);
-				transferredFiles.Add(destPath);
+					await CopyFileWithRetriesAsync(entry, destPath);
+					transferredFiles.Add(destPath);
+				}
+				else
+				{
+					Console.WriteLine($"Skipping unknown entry type: {entry}");
+				}
 			}
+		}
+		catch (Exception ex)
+		{
+			Console.WriteLine($"Unexpected error in folder '{sourceFolder}': {ex.Message}");
 		}
 	}
 
